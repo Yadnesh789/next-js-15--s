@@ -1,0 +1,85 @@
+# Striming App - JioCinema Clone
+
+A modern video streaming application built with Next.js 15, Node.js, MongoDB, and Ant Design.
+
+## Features
+
+- 🔐 Phone-based authentication with OTP verification
+- 👥 Multiple login/logout sessions
+- 📱 Adaptive bitrate streaming (240p to 1080p)
+- 🎬 Full-featured video player with controls
+- 🎨 Modern UI with Ant Design
+- 📦 Code splitting and scalable architecture
+
+## Tech Stack
+
+- **Frontend**: Next.js 15, React 19, Ant Design
+- **Backend**: Node.js, Express, MongoDB
+- **Authentication**: JWT tokens
+- **Video Streaming**: Adaptive bitrate with HLS/DASH
+
+## Project Structure
+
+```
+striming-app/
+├── frontend/          # Next.js 15 application
+├── backend/           # Node.js/Express API
+├── package.json       # Root workspace configuration
+└── README.md
+```
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+ 
+- MongoDB 6+
+- npm or yarn
+
+### Installation
+
+1. Install all dependencies:
+```bash
+npm run install:all
+```
+
+2. Setup environment variables:
+
+Create `.env` files in both frontend and backend directories (see `.env.example` files)
+
+3. Start development servers:
+```bash
+npm run dev
+```
+
+This will start:
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:5000
+
+## Environment Variables
+
+### Frontend (.env.local)
+```
+NEXT_PUBLIC_API_URL=http://localhost:5000
+```
+
+### Backend (.env)
+```
+PORT=5000
+MONGODB_URI=mongodb://localhost:27017/striming-app
+JWT_SECRET=your-secret-key-change-in-production
+JWT_EXPIRES_IN=7d
+OTP_SECRET=your-otp-secret-key
+TWILIO_ACCOUNT_SID=your-twilio-sid
+TWILIO_AUTH_TOKEN=your-twilio-token
+TWILIO_PHONE_NUMBER=your-twilio-number
+```
+
+## API Documentation
+
+API endpoints are available at `/api` routes. See backend documentation for details.
+
+## License
+
+MIT
+
