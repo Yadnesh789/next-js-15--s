@@ -1,4 +1,4 @@
-# Striming App - JioCinema Clone
+# Striming App
 
 A modern video streaming application built with Next.js 15, Node.js, MongoDB, and Ant Design.
 
