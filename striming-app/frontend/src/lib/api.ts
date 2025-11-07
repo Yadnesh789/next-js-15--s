@@ -80,8 +80,9 @@ export const userAPI = {
 
 // Video API
 export const videoAPI = {
-  getVideos: (params?: { category?: string; search?: string; page?: number; limit?: number }) =>
-    api.get('/videos', { params }),
+  getVideos: (params?: { category?: string; search?: string; page?: number; limit?: number }) => {
+    return api.get('/videos', { params });
+  },
   
   getVideo: (id: string) => api.get(`/videos/${id}`),
   

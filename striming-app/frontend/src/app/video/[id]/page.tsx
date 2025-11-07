@@ -9,7 +9,14 @@ import { useAuthStore } from '@/store/authStore';
 import Navbar from '@/components/Navbar';
 import dynamic from 'next/dynamic';
 
-const VideoPlayerClient = dynamic(() => import('@/components/VideoPlayer'), { ssr: false });
+// Use proper dynamic import with error handling
+const VideoPlayerClient = dynamic(
+  () => import('@/components/VideoPlayer'),
+  { 
+    ssr: false,
+    loading: () => <div style={{ padding: '20px', textAlign: 'center', color: '#fff' }}>Loading video player...</div>
+  }
+);
 
 const { Title, Paragraph } = Typography;
 

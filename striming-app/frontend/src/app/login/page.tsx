@@ -81,7 +81,7 @@ export default function LoginPage() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        background: 'linear-gradient(135deg, #FFD700 0%, #FFC107 50%, #FFEB3B 100%)',
         padding: '20px'
       }}
     >
@@ -89,17 +89,27 @@ export default function LoginPage() {
         style={{
           width: '100%',
           maxWidth: '400px',
-          background: 'rgba(255, 255, 255, 0.95)',
-          borderRadius: '12px',
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)'
+          background: '#ffffff',
+          borderRadius: '16px',
+          boxShadow: '0 12px 40px rgba(255, 215, 0, 0.3)',
+          border: '2px solid #FFD700'
         }}
       >
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           <div style={{ textAlign: 'center' }}>
-            <Title level={2} style={{ marginBottom: '8px' }}>
-              Striming App
+            <Title 
+              level={2} 
+              style={{ 
+                marginBottom: '8px',
+                background: 'linear-gradient(135deg, #FFD700, #FFC107)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                fontSize: '28px'
+              }}
+            >
+              🎬 Striming App
             </Title>
-            <Text type="secondary">
+            <Text style={{ color: '#666666', fontSize: '16px' }}>
               {step === 'phone' ? 'Enter your phone number' : 'Enter OTP to verify'}
             </Text>
           </div>
@@ -114,8 +124,9 @@ export default function LoginPage() {
                 ]}
               >
                 <Input
+                  className="input"
                   size="large"
-                  prefix={<PhoneOutlined />}
+                  prefix={<PhoneOutlined style={{ color: '#FFD700' }} />}
                   placeholder="+1234567890"
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
@@ -123,7 +134,7 @@ export default function LoginPage() {
               </Form.Item>
 
               <Button
-                type="primary"
+                className="btn-primary"
                 htmlType="submit"
                 size="large"
                 block
@@ -142,8 +153,9 @@ export default function LoginPage() {
                 ]}
               >
                 <Input
+                  className="input"
                   size="large"
-                  prefix={<LockOutlined />}
+                  prefix={<LockOutlined style={{ color: '#FFD700' }} />}
                   placeholder="Enter 6-digit OTP"
                   maxLength={6}
                   value={otp}
@@ -153,7 +165,7 @@ export default function LoginPage() {
 
               <Space direction="vertical" style={{ width: '100%' }}>
                 <Button
-                  type="primary"
+                  className="btn-primary"
                   htmlType="submit"
                   size="large"
                   block
@@ -163,18 +175,22 @@ export default function LoginPage() {
                 </Button>
 
                 <div style={{ textAlign: 'center' }}>
-                  <Text type="secondary">Didn't receive OTP? </Text>
+                  <Text style={{ color: '#666666' }}>Didn't receive OTP? </Text>
                   <Button
                     type="link"
                     onClick={handleResendOTP}
                     disabled={countdown > 0}
+                    style={{ 
+                      color: countdown > 0 ? '#999999' : '#F57F17',
+                      fontWeight: '600'
+                    }}
                   >
                     Resend {countdown > 0 && `(${countdown}s)`}
                   </Button>
                 </div>
 
                 <Button
-                  type="link"
+                  className="btn-secondary"
                   block
                   onClick={() => {
                     setStep('phone');

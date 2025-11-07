@@ -1,14 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
 import { JWTService } from '../services/jwtService';
 import { User } from '../models/User';
 
 export interface AuthRequest extends Request {
-  user?: {
-    userId: string;
-    phoneNumber: string;
-    sessionId: string;
-  };
-  params?: any;
+  user?: any;
 }
 
 export const authenticate = async (

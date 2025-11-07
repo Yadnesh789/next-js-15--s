@@ -38,14 +38,20 @@ router.post('/send-otp', otpLimiter, async (req: Request, res: Response) => {
     const result = await OTPService.sendOTP(phoneNumber);
     
     if (result.success) {
-      res.json({ 
+      // Prepare response
+      const response: any = { 
         success: true, 
         message: 'OTP sent successfully',
-        // In development, include OTP for testing
-        ...(process.env.NODE_ENV === 'development' && {
-          devOtp: (await import('../models/OTP')).OTP.findOne({ phoneNumber }).then(otp => otp?.otp)
-        })
-      });
+        messageId: result.messageId
+      };
+
+      // In development mode or when OTP is included, return it for easy testing
+      if (result.otp) {
+        response.devOtp = result.otp;
+        response.devMessage = result.error || 'OTP available in response for development';
+      }
+
+      res.json(response);
     } else {
       res.status(400).json({ success: false, error: result.error });
     }
@@ -101,7 +107,7 @@ router.post('/verify-otp', verifyLimiter, async (req: Request, res: Response) =>
 
     // Generate tokens
     const tokenPayload = {
-      userId: user._id.toString(),
+      userId: (user._id as any).toString(),
       phoneNumber: user.phoneNumber,
       sessionId
     };

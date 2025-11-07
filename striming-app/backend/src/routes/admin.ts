@@ -70,6 +70,7 @@ router.post(
 
       await createVideoWithQualities(
         {
+          filePath: req.file.path,
           title,
           description,
           category: category || 'general',
@@ -79,13 +80,33 @@ router.post(
         qualityFiles
       );
 
-      // Clean up uploaded file after processing
-      // fs.unlinkSync(req.file.path);
+      // Clean up uploaded file after processing to GridFS
+      try {
+        const fs = require('fs');
+        if (fs.existsSync(req.file.path)) {
+          fs.unlinkSync(req.file.path);
+        }
+      } catch (cleanupError) {
+        // Failed to cleanup temporary file
+      }
 
       res.json({ success: true, message: 'Video uploaded successfully' });
     } catch (error: any) {
-      console.error('Upload error:', error);
-      res.status(500).json({ error: error.message });
+      
+      // Clean up file even on error
+      try {
+        const fs = require('fs');
+        if (req.file && fs.existsSync(req.file.path)) {
+          fs.unlinkSync(req.file.path);
+        }
+      } catch (cleanupError) {
+        // Failed to cleanup temporary file after error
+      }
+      
+      res.status(500).json({ 
+        error: error.message,
+        stack: error.stack
+      });
     }
   }
 );

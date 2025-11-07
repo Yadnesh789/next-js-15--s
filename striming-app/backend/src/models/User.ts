@@ -55,7 +55,6 @@ const UserSchema = new Schema<IUser>(
 );
 
 // Indexes
-UserSchema.index({ phoneNumber: 1 });
 UserSchema.index({ 'sessions.sessionId': 1 });
 
 export const User = mongoose.model<IUser>('User', UserSchema);

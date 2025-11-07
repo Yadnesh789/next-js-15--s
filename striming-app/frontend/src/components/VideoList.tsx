@@ -23,17 +23,34 @@ export default function VideoList() {
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debugInfo, setDebugInfo] = useState<string>('Initializing...');
 
   useEffect(() => {
+    setDebugInfo('Component mounted - Loading videos...');
     loadVideos();
   }, []);
 
   const loadVideos = async () => {
     try {
       setLoading(true);
+      setDebugInfo('Loading videos...');
+      
+      // Direct API test
+      try {
+        setDebugInfo('Testing direct fetch...');
+        const directResponse = await fetch('http://localhost:5000/api/videos');
+        const directData = await directResponse.json();
+        setDebugInfo(`Direct fetch successful: ${directData.videos.length} videos found`);
+      } catch (directError: any) {
+        setDebugInfo(`Direct fetch failed: ${directError.message}`);
+      }
+      
+      setDebugInfo('Testing videoAPI...');
       const response = await videoAPI.getVideos();
       setVideos(response.data.videos);
+      setDebugInfo(`VideoAPI successful: ${response.data.videos.length} videos loaded`);
     } catch (error: any) {
+      setDebugInfo(`Error: ${error.message}`);
       message.error(error.response?.data?.error || 'Failed to load videos');
     } finally {
       setLoading(false);
@@ -60,27 +77,44 @@ export default function VideoList() {
 
   if (loading && videos.length === 0) {
     return (
-      <div style={{ textAlign: 'center', padding: '50px' }}>
-        <Spin size="large" />
+      <div style={{ textAlign: 'center', padding: '50px', background: '#ffffff' }}>
+        <div className="spinner" style={{ margin: '0 auto' }}></div>
+        <p style={{ marginTop: '20px', color: '#333333' }}>Loading videos...</p>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: '20px', minHeight: '100vh' }}>
+    <div style={{ 
+      padding: '20px', 
+      minHeight: '100vh', 
+      background: '#ffffff'
+    }}>
       <div style={{ marginBottom: '30px' }}>
-        <h1 style={{ color: '#fff', marginBottom: '20px', fontSize: '32px' }}>
-          Striming App
+        <h1 style={{ 
+          color: '#333333', 
+          marginBottom: '20px', 
+          fontSize: '32px',
+          textAlign: 'center',
+          background: 'linear-gradient(135deg, #FFD700, #FFC107)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          textShadow: '2px 2px 4px rgba(255, 215, 0, 0.3)'
+        }}>
+          🎬 Striming App
         </h1>
-        <Input
-          size="large"
-          placeholder="Search videos..."
-          prefix={<SearchOutlined />}
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onPressEnter={handleSearch}
-          style={{ maxWidth: '500px' }}
-        />
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <Input
+            className="input"
+            size="large"
+            placeholder="Search videos..."
+            prefix={<SearchOutlined style={{ color: '#FFD700' }} />}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onPressEnter={handleSearch}
+            style={{ maxWidth: '500px' }}
+          />
+        </div>
       </div>
 
       <Row gutter={[16, 16]}>
@@ -88,9 +122,10 @@ export default function VideoList() {
           <Col xs={24} sm={12} md={8} lg={6} key={video._id}>
             <Link href={`/video/${video._id}`} style={{ textDecoration: 'none' }}>
               <Card
+                className="card"
                 hoverable
                 cover={
-                  <div style={{ position: 'relative', background: '#000' }}>
+                  <div style={{ position: 'relative', background: '#f5f5f5' }}>
                     {video.thumbnail ? (
                       <img
                         alt={video.title}
@@ -105,10 +140,10 @@ export default function VideoList() {
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          background: '#1a1a1a'
+                          background: 'linear-gradient(135deg, #FFF9C4, #FFD700)'
                         }}
                       >
-                        <PlayCircleOutlined style={{ fontSize: '48px', color: '#666' }} />
+                        <PlayCircleOutlined style={{ fontSize: '48px', color: '#333333' }} />
                       </div>
                     )}
                     <div
@@ -116,27 +151,32 @@ export default function VideoList() {
                         position: 'absolute',
                         bottom: '8px',
                         right: '8px',
-                        background: 'rgba(0,0,0,0.7)',
-                        color: '#fff',
-                        padding: '2px 6px',
-                        borderRadius: '4px',
-                        fontSize: '12px'
+                        background: '#FFD700',
+                        color: '#333333',
+                        padding: '4px 8px',
+                        borderRadius: '12px',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        border: '1px solid #FFC107'
                       }}
                     >
                       {formatDuration(video.duration)}
                     </div>
                   </div>
                 }
-                styles={{ body: { background: '#1a1a1a', color: '#fff' } }}
+                style={{ 
+                  background: '#ffffff',
+                  border: '1px solid #e0e0e0'
+                }}
               >
                 <Card.Meta
                   title={
-                    <div style={{ color: '#fff', marginBottom: '8px' }}>
+                    <div style={{ color: '#333333', marginBottom: '8px', fontWeight: '600' }}>
                       {video.title}
                     </div>
                   }
                   description={
-                    <div style={{ color: '#999', fontSize: '12px' }}>
+                    <div style={{ color: '#666666', fontSize: '12px' }}>
                       {video.views} views • {video.category}
                     </div>
                   }
@@ -147,9 +187,20 @@ export default function VideoList() {
         ))}
       </Row>
 
+
       {videos.length === 0 && !loading && (
-        <div style={{ textAlign: 'center', padding: '50px', color: '#999' }}>
-          No videos found
+        <div style={{ 
+          textAlign: 'center', 
+          padding: '50px', 
+          color: '#666666',
+          background: '#FFF9C4',
+          borderRadius: '12px',
+          border: '2px dashed #FFD700',
+          margin: '20px 0'
+        }}>
+          <PlayCircleOutlined style={{ fontSize: '48px', color: '#FFD700', marginBottom: '16px' }} />
+          <h3 style={{ color: '#333333', marginBottom: '8px' }}>No videos found</h3>
+          <p>Try adjusting your search terms or check back later for new content.</p>
         </div>
       )}
     </div>

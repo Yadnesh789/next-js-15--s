@@ -112,65 +112,6 @@ router.get('/debug/:fileId', async (req: AuthRequest, res: Response) => {
   }
 });
 
-// Get video manifest for streaming
-router.get('/:videoId/manifest', async (req: AuthRequest, res: Response) => {
-  try {
-    const { videoId } = req.params;
-    
-    // Check for authentication
-    let token = null;
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
-      token = req.headers.authorization.substring(7);
-    } else if (req.query.token) {
-      token = req.query.token as string;
-    }
-
-    if (!token) {
-      res.status(401).json({ error: 'Authentication token required' });
-      return;
-    }
-
-    // Verify token
-    try {
-      const { JWTService } = await import('../services/jwtService');
-      const decoded = JWTService.verifyAccessToken(token);
-      req.user = decoded;
-    } catch (error) {
-      res.status(401).json({ error: 'Invalid token' });
-      return;
-    }
-
-    // Find the video
-    const video = await Video.findById(videoId);
-    if (!video) {
-      res.status(404).json({ error: 'Video not found' });
-      return;
-    }
-
-    // Generate manifest with available qualities
-    // Support both old structure (_id) and new structure (fileId)
-    const qualities = video.videoFiles.map((file: any) => ({
-      quality: file.quality,
-      bitrate: file.bitrate,
-      resolution: file.resolution,
-      url: `/api/stream/${file.fileId || file._id}` // Use fileId if available, fallback to _id
-    }));
-
-    const manifest = {
-      videoId: video._id,
-      title: video.title,
-      duration: video.duration,
-      thumbnail: video.thumbnail,
-      qualities
-    };
-
-    res.json(manifest);
-
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 // Stream video chunk with enhanced web compatibility
 router.get('/:fileId', async (req: AuthRequest, res: Response) => {
   try {
@@ -201,12 +142,8 @@ router.get('/:fileId', async (req: AuthRequest, res: Response) => {
     }
     
     // Verify file exists and user has access
-    // Support both old structure (_id) and new structure (fileId)
     const video = await Video.findOne({
-      $or: [
-        { 'videoFiles.fileId': fileId },
-        { 'videoFiles._id': fileId }
-      ]
+      'videoFiles.fileId': fileId
     });
 
     if (!video) {

@@ -71,7 +71,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       await userAPI.logout();
     } catch (error) {
-      console.error('Logout error:', error);
+      // Logout error
     } finally {
       Cookies.remove('accessToken');
       Cookies.remove('refreshToken');
@@ -92,7 +92,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       await userAPI.logoutAll();
     } catch (error) {
-      console.error('Logout all error:', error);
+      // Logout all error
     } finally {
       Cookies.remove('accessToken');
       Cookies.remove('refreshToken');
@@ -114,7 +114,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const response = await userAPI.getSessions();
       set({ sessions: response.data.sessions });
     } catch (error) {
-      console.error('Failed to load sessions:', error);
+      // Failed to load sessions
     }
   },
 

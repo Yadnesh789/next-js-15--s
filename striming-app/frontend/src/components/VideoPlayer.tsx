@@ -40,14 +40,81 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [currentQuality, setCurrentQuality] = useState<string>('720p');
   const [isPlaying, setIsPlaying] = useState(false);
+  const [buffering, setBuffering] = useState(false);
+  const [seekIndicator, setSeeking] = useState<{ show: boolean; direction: 'forward' | 'backward' | null }>({ show: false, direction: null });
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(1);
   const [brightness, setBrightness] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragTimeout, setDragTimeout] = useState<NodeJS.Timeout | null>(null);
   const [networkQuality, setNetworkQuality] = useState<'fast' | 'slow'>('fast');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const controlsTimeoutRef = useRef<NodeJS.Timeout>();
+
+  // Add CSS animation for seek indicator
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes fadeInOut {
+        0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+        20% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+        80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        100% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+      }
+    `;
+    document.head.appendChild(style);
+    
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+
+  // Periodic state synchronization to ensure React state matches video element state
+  useEffect(() => {
+    const syncInterval = setInterval(() => {
+      if (videoRef.current) {
+        const actuallyPlaying = !videoRef.current.paused && !videoRef.current.ended;
+        if (actuallyPlaying !== isPlaying) {
+          setIsPlaying(actuallyPlaying);
+        }
+      }
+    }, 500); // Check every 500ms
+
+    return () => clearInterval(syncInterval);
+  }, [isPlaying]);
+
+  // Keyboard controls
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target !== document.body) return; // Only if no input is focused
+      
+      switch (e.code) {
+        case 'Space':
+          e.preventDefault();
+          togglePlay();
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          seekBackward();
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          seekForward();
+          break;
+        case 'KeyM':
+          e.preventDefault();
+          // Toggle mute (if implemented)
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  });
 
   // Load manifest
   useEffect(() => {
@@ -57,17 +124,40 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
 
   const loadManifest = async () => {
     try {
+      setLoading(true);
+      setError(null);
+      
+      // Check browser codec support
+      checkCodecSupport();
+      
+      // Check if user is authenticated
+      const token = Cookies.get('accessToken');
+      
+      if (!token) {
+        setError('Authentication required. Please log in to watch videos.');
+        setLoading(false);
+        return;
+      }
+      
       const response = await videoAPI.getStreamManifest(videoId);
+      console.log('Stream manifest loaded:', response.data);
       setManifest(response.data);
       
       // Set initial quality based on network
       if (response.data.qualities.length > 0) {
         const initialQuality = networkQuality === 'slow' ? '240p' : '720p';
-        const available = response.data.qualities.find(q => q.quality === initialQuality);
+        const available = response.data.qualities.find((q: Quality) => q.quality === initialQuality);
         setCurrentQuality(available ? initialQuality : response.data.qualities[0].quality);
       }
     } catch (error: any) {
+      if (error.response?.status === 401) {
+        setError('Authentication failed. Please log in again.');
+      } else {
+        setError(`Failed to load video: ${error.message}`);
+      }
       message.error('Failed to load video');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -94,6 +184,175 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
         const duration = Date.now() - startTime;
         setNetworkQuality(duration > 1000 ? 'slow' : 'fast');
       });
+  };
+
+  // Check browser codec support
+  const checkCodecSupport = () => {
+    const video = document.createElement('video');
+    const codecs = {
+      h264: video.canPlayType('video/mp4; codecs="avc1.42E01E"'),
+      h265: video.canPlayType('video/mp4; codecs="hev1.1.6.L93.B0"'),
+      vp8: video.canPlayType('video/webm; codecs="vp8"'),
+      vp9: video.canPlayType('video/webm; codecs="vp9"'),
+    };
+    
+    return codecs;
+  };
+
+  // Add video format validation
+  const validateVideoFormat = async (url: string) => {
+    try {
+      const response = await fetch(url, { 
+        method: 'HEAD',
+        headers: {
+          'Range': 'bytes=0-15'
+        }
+      });
+      
+      if (!response.ok) return false;
+      
+      const contentType = response.headers.get('Content-Type');
+      const supportedTypes = ['video/mp4', 'video/webm', 'video/ogg'];
+      
+// Console statement removed
+      
+      if (contentType && supportedTypes.some(type => contentType.includes(type))) {
+// Console statement removed
+        return true;
+      }
+      
+      // Check file signature for MP4
+      try {
+        const partialResponse = await fetch(url, { 
+          headers: { 'Range': 'bytes=0-31' }
+        });
+        
+        if (partialResponse.ok) {
+          const buffer = await partialResponse.arrayBuffer();
+          const bytes = new Uint8Array(buffer);
+          
+          // Check for MP4 file signature (ftyp)
+          if (bytes.length >= 8) {
+            const ftypSignature = Array.from(bytes.slice(4, 8))
+              .map(b => String.fromCharCode(b))
+              .join('');
+            
+// Console statement removed
+            
+            if (ftypSignature === 'ftyp') {
+// Console statement removed
+              return true;
+            }
+          }
+        }
+      } catch (sigError) {
+// Console statement removed
+      }
+      
+// Console statement removed
+      return false;
+    } catch (error) {
+// Console statement removed
+      return false;
+    }
+  };
+
+  const tryAlternativeVideoLoading = async () => {
+    if (!manifest || !videoRef.current) return;
+    
+// Console statement removed
+    
+    try {
+      // Clear current source
+      videoRef.current.src = '';
+      videoRef.current.load();
+      
+      // Try loading with direct source assignment instead of source elements
+      const qualityObj = manifest.qualities.find((q: Quality) => q.quality === currentQuality);
+      if (qualityObj) {
+        const token = Cookies.get('accessToken');
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+        const videoUrl = `${baseUrl}${qualityObj.url}`;
+        
+        // Try different authentication methods and formats
+        const authMethods = [
+          // Try with token in query param
+          token ? `${videoUrl}?token=${encodeURIComponent(token)}` : null,
+          // Try with different token param name
+          token ? `${videoUrl}?auth=${encodeURIComponent(token)}` : null,
+          // Try with range header support
+          token ? `${videoUrl}?token=${encodeURIComponent(token)}&range=bytes=0-` : null,
+        ].filter(Boolean);
+        
+        for (const url of authMethods) {
+          if (!url) continue;
+          
+          try {
+// Console statement removed
+            
+            // Test if URL is accessible with a small range request
+            const response = await fetch(url, { 
+              method: 'HEAD',
+              headers: {
+                ...(token && { 'Authorization': `Bearer ${token}` }),
+                'Accept': 'video/mp4,video/webm,video/*,*/*;q=0.1',
+                'Range': 'bytes=0-1023'
+              }
+            });
+            
+// Console statement removed
+// Console statement removed
+// Console statement removed
+            
+            if (response.ok) {
+// Console statement removed
+              
+              // Validate video format before setting source
+              const isValidFormat = await validateVideoFormat(url);
+              if (!isValidFormat) {
+// Console statement removed
+                continue;
+              }
+              
+              // Set the video source and configure for streaming
+              videoRef.current.src = url;
+              
+              // Add specific attributes for better streaming support
+              videoRef.current.setAttribute('type', 'video/mp4');
+              videoRef.current.preload = 'metadata';
+              videoRef.current.crossOrigin = 'anonymous';
+              
+              videoRef.current.load();
+              
+              // Wait a bit and check if video is loadable
+              setTimeout(() => {
+                if (videoRef.current && videoRef.current.readyState >= 1) {
+// Console statement removed
+                } else {
+// Console statement removed
+                }
+              }, 2000);
+              
+              return;
+            }
+          } catch (error) {
+// Console statement removed
+            continue;
+          }
+        }
+        
+        throw new Error('No compatible video format found');
+      }
+    } catch (error) {
+// Console statement removed
+      
+      // Check if it's a format issue
+      if (error instanceof Error && error.message.includes('format')) {
+        setError('Video format is not web-compatible. The video needs to be transcoded for web playback. Please contact support to re-process this video.');
+      } else {
+        setError('Video format not supported. The video file may be corrupted or in an unsupported format. Please contact support.');
+      }
+    }
   };
 
   // Adaptive quality switching
@@ -128,39 +387,45 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
   const switchQuality = (quality: string) => {
     if (!manifest) return;
     
-    const qualityObj = manifest.qualities.find(q => q.quality === quality);
+    const qualityObj = manifest.qualities.find((q: Quality) => q.quality === quality);
     if (!qualityObj || !videoRef.current) return;
 
     const currentTime = videoRef.current.currentTime;
     const wasPlaying = !videoRef.current.paused;
     
     setCurrentQuality(quality);
+// Console statement removed
     
     const token = Cookies.get('accessToken');
-    const videoUrl = `${process.env.NEXT_PUBLIC_API_URL}${qualityObj.url}`;
+// Console statement removed
     
-    videoRef.current.src = videoUrl;
-    videoRef.current.setAttribute('crossorigin', 'anonymous');
+    // Construct the proper video URL
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+    const videoUrl = `${baseUrl}${qualityObj.url}`;
+// Console statement removed
     
-    // Add auth header via fetch
-    fetch(videoUrl, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    }).then(() => {
+    // Add auth token to URL if available
+    const urlWithAuth = token ? `${videoUrl}?token=${encodeURIComponent(token)}` : videoUrl;
+// Console statement removed
+    
+    // Set the video source
+    videoRef.current.src = urlWithAuth;
+    videoRef.current.load();
+    
+    // Restore playback state after loading
+    const handleLoadedMetadata = () => {
       if (videoRef.current) {
-        videoRef.current.load();
-        
-        videoRef.current.addEventListener('loadedmetadata', () => {
-          if (videoRef.current) {
-            videoRef.current.currentTime = currentTime;
-            if (wasPlaying) {
-              videoRef.current.play();
-            }
-          }
-        }, { once: true });
+        videoRef.current.currentTime = currentTime;
+        if (wasPlaying) {
+          videoRef.current.play().catch((error) => {
+// Console statement removed
+            message.error('Failed to resume video playback');
+          });
+        }
       }
-    });
+    };
+    
+    videoRef.current.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
   };
 
   // Video event handlers
@@ -168,17 +433,80 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
     const video = videoRef.current;
     if (!video) return;
 
-    const updateTime = () => setCurrentTime(video.currentTime);
+    // Set initial state based on video element
+    setIsPlaying(!video.paused && !video.ended);
+
+    const updateTime = () => {
+      setCurrentTime(video.currentTime);
+    };
     const updateDuration = () => setDuration(video.duration);
-    const handlePlay = () => setIsPlaying(true);
-    const handlePause = () => setIsPlaying(false);
-    const handleEnded = () => setIsPlaying(false);
+    const handlePlay = () => {
+// Console statement removed
+      setIsPlaying(true);
+      setBuffering(false); // Clear buffering when playing starts
+    };
+    
+    const handlePause = () => {
+      setIsPlaying(false);
+    };
+    
+    const handleEnded = () => {
+      setIsPlaying(false);
+    };
+    
+    const handleWaiting = () => {
+      setBuffering(true);
+    };
+    
+    const handleCanPlayThrough = () => {
+      setBuffering(false);
+    };
+    
+    const handleError = (e: Event) => {
+      const error = (e.target as HTMLVideoElement).error;
+      if (error) {
+        let errorMessage = 'Video playback error';
+        switch (error.code) {
+          case 1:
+            errorMessage = 'Video loading was aborted';
+            break;
+          case 2:
+            errorMessage = 'Network error while loading video';
+            break;
+          case 3:
+            errorMessage = 'Video decode error - corrupted file';
+            break;
+          case 4:
+            errorMessage = 'Video format not supported by your browser';
+            // Try to reload with different approach
+            tryAlternativeVideoLoading();
+            return;
+          default:
+            errorMessage = error.message || 'Unknown video error';
+        }
+        
+        setError(`Video error: ${errorMessage}`);
+        message.error(errorMessage);
+      }
+    };
+    const handleLoadStart = () => {
+// Console statement removed
+    };
+    const handleCanPlay = () => {
+// Console statement removed
+      setError(null); // Clear any previous errors
+    };
 
     video.addEventListener('timeupdate', updateTime);
     video.addEventListener('loadedmetadata', updateDuration);
     video.addEventListener('play', handlePlay);
     video.addEventListener('pause', handlePause);
     video.addEventListener('ended', handleEnded);
+    video.addEventListener('error', handleError);
+    video.addEventListener('loadstart', handleLoadStart);
+    video.addEventListener('canplay', handleCanPlay);
+    video.addEventListener('waiting', handleWaiting);
+    video.addEventListener('canplaythrough', handleCanPlayThrough);
 
     return () => {
       video.removeEventListener('timeupdate', updateTime);
@@ -186,46 +514,236 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
       video.removeEventListener('play', handlePlay);
       video.removeEventListener('pause', handlePause);
       video.removeEventListener('ended', handleEnded);
+      video.removeEventListener('error', handleError);
+      video.removeEventListener('loadstart', handleLoadStart);
+      video.removeEventListener('canplay', handleCanPlay);
+      video.removeEventListener('waiting', handleWaiting);
+      video.removeEventListener('canplaythrough', handleCanPlayThrough);
     };
   }, []);
+
+  // Timer-based update for smooth slider synchronization
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+    
+    if (isPlaying && videoRef.current && !isDragging) {
+      intervalId = setInterval(() => {
+        if (videoRef.current && !videoRef.current.paused && !isDragging) {
+          setCurrentTime(videoRef.current.currentTime);
+        }
+      }, 100); // Update every 100ms for smooth slider movement
+    }
+    
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [isPlaying, isDragging]);
 
   // Update video source when quality changes
   useEffect(() => {
     if (!manifest || !videoRef.current) return;
     
-    const qualityObj = manifest.qualities.find(q => q.quality === currentQuality);
+    const qualityObj = manifest.qualities.find((q: Quality) => q.quality === currentQuality);
     if (qualityObj) {
       const token = Cookies.get('accessToken');
-      const videoUrl = `${process.env.NEXT_PUBLIC_API_URL}${qualityObj.url}`;
+// Console statement removed
       
-      videoRef.current.src = videoUrl;
-      videoRef.current.setAttribute('crossorigin', 'anonymous');
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+      const videoUrl = `${baseUrl}${qualityObj.url}`;
+// Console statement removed
+      
+      const urlWithAuth = token ? `${videoUrl}?token=${encodeURIComponent(token)}` : videoUrl;
+// Console statement removed
+      
+      // Clear any existing source first
+      videoRef.current.src = '';
       videoRef.current.load();
+      
+      // Set new source with delay to ensure clean state
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.src = urlWithAuth;
+          
+          // Set proper MIME type and codec hints
+          if (videoRef.current.canPlayType) {
+            const mp4Support = videoRef.current.canPlayType('video/mp4; codecs="avc1.42E01E"');
+            const webmSupport = videoRef.current.canPlayType('video/webm; codecs="vp8"');
+          }
+          
+          videoRef.current.load();
+        }
+      }, 100);
+      
+      // Add error handling for source loading
+      const handleError = (e: Event) => {
+// Console statement removed
+        const video = e.target as HTMLVideoElement;
+        if (video.error) {
+          // Try alternative loading on format error
+          if (video.error.code === 4) {
+// Console statement removed
+            tryAlternativeVideoLoading();
+          } else {
+            setError(`Video loading failed: ${video.error.message || 'Unknown error'}`);
+          }
+        }
+      };
+      
+      const handleLoadStart = () => {
+// Console statement removed
+        setError(null); // Clear previous errors
+      };
+      
+      const handleCanPlay = () => {
+// Console statement removed
+        setError(null);
+      };
+      
+      videoRef.current.addEventListener('error', handleError, { once: true });
+      videoRef.current.addEventListener('loadstart', handleLoadStart, { once: true });
+      videoRef.current.addEventListener('canplay', handleCanPlay, { once: true });
     }
   }, [currentQuality, manifest]);
 
   const togglePlay = () => {
-    if (!videoRef.current) return;
-    if (isPlaying) {
-      videoRef.current.pause();
+    if (!videoRef.current) {
+// Console statement removed
+      return;
+    }
+    
+    // Use the actual video element state as the source of truth
+    const actuallyPlaying = !videoRef.current.paused;
+    
+    if (actuallyPlaying) {
+// Console statement removed
+      try {
+        videoRef.current.pause();
+        
+        // Force state update if event doesn't fire
+        setTimeout(() => {
+          if (videoRef.current && videoRef.current.paused && isPlaying) {
+// Console statement removed
+            setIsPlaying(false);
+          }
+        }, 100);
+        
+      } catch (error) {
+// Console statement removed
+        setIsPlaying(false);
+      }
     } else {
-      videoRef.current.play();
+      // Check if video has a valid source before trying to play
+      if (!videoRef.current.src) {
+// Console statement removed
+        message.warning('Video source not available');
+        return;
+      }
+      
+// Console statement removed
+      videoRef.current.play().catch((error) => {
+// Console statement removed
+        message.error(`Failed to play video: ${error.message}`);
+        
+        // Reset playing state on error
+        setIsPlaying(false);
+        
+        // Try to reload the video if play fails
+        if (manifest && videoRef.current) {
+// Console statement removed
+          const qualityObj = manifest.qualities.find((q: Quality) => q.quality === currentQuality);
+          if (qualityObj) {
+            const token = Cookies.get('accessToken');
+            const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+            const videoUrl = `${baseUrl}${qualityObj.url}`;
+            const urlWithAuth = token ? `${videoUrl}?token=${encodeURIComponent(token)}` : videoUrl;
+            
+            videoRef.current.src = urlWithAuth;
+            videoRef.current.load();
+          }
+        }
+      });
     }
   };
 
   const seekForward = () => {
-    if (!videoRef.current) return;
-    videoRef.current.currentTime = Math.min(videoRef.current.currentTime + 10, duration);
+    if (!videoRef.current) {
+// Console statement removed
+      return;
+    }
+    
+    const currentTime = videoRef.current.currentTime;
+    const videoDuration = videoRef.current.duration || duration;
+    const newTime = Math.min(currentTime + 10, videoDuration);
+    
+    videoRef.current.currentTime = newTime;
+    
+    // Force update the state
+    setCurrentTime(newTime);
+    
+    // Show visual feedback
+    setSeeking({ show: true, direction: 'forward' });
+    setTimeout(() => setSeeking({ show: false, direction: null }), 800);
   };
 
   const seekBackward = () => {
-    if (!videoRef.current) return;
-    videoRef.current.currentTime = Math.max(videoRef.current.currentTime - 10, 0);
+    if (!videoRef.current) {
+// Console statement removed
+      return;
+    }
+    
+    const currentTime = videoRef.current.currentTime;
+    const newTime = Math.max(currentTime - 10, 0);
+    
+    videoRef.current.currentTime = newTime;
+    
+    // Force update the state
+    setCurrentTime(newTime);
+    
+    // Show visual feedback
+    setSeeking({ show: true, direction: 'backward' });
+    setTimeout(() => setSeeking({ show: false, direction: null }), 800);
   };
 
   const handleTimeChange = (value: number) => {
+// Console statement removed
+    setIsDragging(true); // Set dragging when slider changes
+    
+    // Clear any existing timeout
+    if (dragTimeout) {
+      clearTimeout(dragTimeout);
+    }
+    
+    // Set a fallback timeout to reset dragging state
+    const timeout = setTimeout(() => {
+// Console statement removed
+      setIsDragging(false);
+    }, 1000);
+    setDragTimeout(timeout);
+    
+    if (videoRef.current) {
+      const oldTime = videoRef.current.currentTime;
+      videoRef.current.currentTime = value;
+      setCurrentTime(value); // Update state to sync slider
+// Console statement removed
+    }
+  };
+
+  const handleSliderAfterChange = (value: number) => {
+// Console statement removed
+    
+    // Clear the fallback timeout
+    if (dragTimeout) {
+      clearTimeout(dragTimeout);
+      setDragTimeout(null);
+    }
+    
+    setIsDragging(false);
     if (videoRef.current) {
       videoRef.current.currentTime = value;
+      setCurrentTime(value);
+// Console statement removed
     }
   };
 
@@ -284,16 +802,92 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  if (!manifest) {
-    return <div style={{ textAlign: 'center', padding: '50px', color: '#fff' }}>Loading video...</div>;
+  if (loading) {
+    return (
+      <div style={{ 
+        textAlign: 'center', 
+        padding: '50px', 
+        background: '#ffffff',
+        color: '#333333',
+        borderRadius: '12px',
+        border: '2px solid #FFD700'
+      }}>
+        <div className="spinner" style={{ margin: '0 auto 20px', borderColor: '#FFD700' }}></div>
+        <span style={{ color: '#666666' }}>Loading video...</span>
+      </div>
+    );
   }
 
+  if (error) {
+    return (
+      <div style={{ 
+        textAlign: 'center', 
+        padding: '50px', 
+        background: '#ffffff',
+        color: '#ff4d4f',
+        borderRadius: '12px',
+        border: '2px solid #FFD700'
+      }}>
+        <h3 style={{ color: '#ff4d4f' }}>❌ Error Loading Video</h3>
+        <p style={{ color: '#666666' }}>{error}</p>
+        <div style={{ marginTop: '20px', display: 'flex', gap: '10px', justifyContent: 'center' }}>
+          <Button 
+            onClick={loadManifest} 
+            style={{ 
+              backgroundColor: '#FFD700',
+              borderColor: '#FFD700',
+              color: '#333333'
+            }}
+            type="primary"
+          >
+            Retry
+          </Button>
+          {error.includes('Authentication') && (
+            <Button 
+              onClick={() => window.location.href = '/login'} 
+              style={{ 
+                backgroundColor: '#FFC107',
+                borderColor: '#FFC107',
+                color: '#333333'
+              }}
+              type="primary"
+            >
+              Go to Login
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (!manifest) {
+    return (
+      <div style={{ 
+        textAlign: 'center', 
+        padding: '50px', 
+        background: '#ffffff',
+        color: '#333333',
+        borderRadius: '12px',
+        border: '2px solid #FFD700'
+      }}>
+        <span style={{ color: '#666666' }}>No video data available</span>
+      </div>
+    );
+  }
+console.log(videoRef,"ss")
   return (
     <div
       ref={containerRef}
       className="video-player-container"
       onMouseMove={handleMouseMove}
-      style={{ position: 'relative', width: '100%', background: '#000' }}
+      style={{ 
+        position: 'relative', 
+        width: '100%', 
+        background: '#000',
+        borderRadius: '12px',
+        overflow: 'hidden',
+        border: '3px solid #FFD700'
+      }}
     >
       <div className="video-player-wrapper">
         <video
@@ -303,9 +897,122 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
             width: '100%',
             height: '100%'
           }}
-          onClick={togglePlay}
+          onClick={(e) => {
+            e.preventDefault();
+// Console statement removed
+            togglePlay();
+          }}
+          onDoubleClick={(e) => {
+            e.preventDefault();
+// Console statement removed
+            togglePlay();
+          }}
           controls={false}
-        />
+          preload="metadata"
+          crossOrigin="anonymous"
+          playsInline
+        >
+          <p style={{ color: '#ff4d4f', padding: '20px', textAlign: 'center' }}>
+            Your browser does not support the video tag or the video format.
+            <br />
+            Please try a different browser or contact support.
+          </p>
+        </video>
+
+        {/* Center Play Overlay */}
+        {(!isPlaying || loading || buffering) && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              zIndex: 10,
+              pointerEvents: (loading || buffering) ? 'none' : 'auto'
+            }}
+          >
+            <Button
+              type="text"
+              icon={
+                loading ? (
+                  <div style={{ color: '#fff', fontSize: '16px' }}>Loading...</div>
+                ) : buffering ? (
+                  <div style={{ color: '#fff', fontSize: '16px' }}>Buffering...</div>
+                ) : (
+                  <PlayCircleOutlined />
+                )
+              }
+              onClick={!loading && !buffering ? togglePlay : undefined}
+              size="large"
+              style={{
+                color: '#fff',
+                fontSize: buffering || loading ? '16px' : '80px',
+                backgroundColor: 'rgba(0,0,0,0.6)',
+                borderRadius: '50%',
+                border: '3px solid #fff',
+                width: '120px',
+                height: '120px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+                transition: 'all 0.3s ease',
+                opacity: (loading || buffering) ? 0.8 : 1
+              }}
+              onMouseEnter={(e) => {
+                if (!loading && !buffering) {
+                  e.currentTarget.style.transform = 'scale(1.1)';
+                  e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.8)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!loading && !buffering) {
+                  e.currentTarget.style.transform = 'scale(1)';
+                  e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.6)';
+                }
+              }}
+              title={
+                loading ? 'Loading...' : 
+                buffering ? 'Buffering...' : 
+                'Play Video'
+              }
+            />
+          </div>
+        )}
+
+        {/* Seek Indicator Overlay */}
+        {seekIndicator.show && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              zIndex: 15,
+              pointerEvents: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              backgroundColor: 'rgba(0,0,0,0.8)',
+              padding: '20px 30px',
+              borderRadius: '12px',
+              border: '2px solid #FFD700',
+              animation: 'fadeInOut 0.8s ease-in-out'
+            }}
+          >
+            {seekIndicator.direction === 'forward' ? (
+              <>
+                <ForwardOutlined style={{ color: '#52c41a', fontSize: '24px' }} />
+                <span style={{ color: '#fff', fontSize: '18px', fontWeight: 'bold' }}>+10s</span>
+              </>
+            ) : (
+              <>
+                <BackwardOutlined style={{ color: '#ff4d4f', fontSize: '24px' }} />
+                <span style={{ color: '#fff', fontSize: '18px', fontWeight: 'bold' }}>-10s</span>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {showControls && (
@@ -315,9 +1022,11 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
             bottom: 0,
             left: 0,
             right: 0,
-            background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)',
+            background: 'linear-gradient(to top, rgba(255,215,0,0.9), rgba(255,215,0,0.7), transparent)',
             padding: '20px',
-            transition: 'opacity 0.3s'
+            transition: 'opacity 0.3s',
+            borderBottomLeftRadius: '12px',
+            borderBottomRightRadius: '12px'
           }}
         >
           {/* Progress bar */}
@@ -326,8 +1035,13 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
             max={duration}
             step={0.1}
             onChange={handleTimeChange}
+            onChangeComplete={handleSliderAfterChange}
             tooltip={{ formatter: (value) => formatTime(value || 0) }}
-            styles={{ track: { background: '#1890ff' } }}
+            styles={{ 
+              track: { background: '#FFC107' },
+              handle: { borderColor: '#FFD700', backgroundColor: '#FFD700' },
+              rail: { backgroundColor: 'rgba(255,255,255,0.3)' }
+            }}
           />
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginTop: '10px', flexWrap: 'wrap' }}>
@@ -336,15 +1050,56 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
               type="text"
               icon={isPlaying ? <PauseOutlined /> : <PlayCircleOutlined />}
               onClick={togglePlay}
-              style={{ color: '#fff', fontSize: '24px' }}
+              size="large"
+              style={{ 
+                color: isPlaying ? '#ff4d4f' : '#52c41a', 
+                fontSize: '28px', 
+                backgroundColor: 'rgba(255,255,255,0.95)', 
+                borderRadius: '50%',
+                border: `2px solid ${isPlaying ? '#ff4d4f' : '#52c41a'}`,
+                width: '60px',
+                height: '60px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                transition: 'all 0.3s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.1)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+              }}
+              title={isPlaying ? 'Pause Video' : 'Play Video'}
             />
 
             {/* Seek backward */}
             <Button
               type="text"
               icon={<BackwardOutlined />}
-              onClick={seekBackward}
-              style={{ color: '#fff' }}
+              onClick={(e) => {
+                e.preventDefault();
+// Console statement removed
+                seekBackward();
+              }}
+              style={{ 
+                color: '#333333', 
+                backgroundColor: 'rgba(255,255,255,0.9)', 
+                borderRadius: '8px',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(255,255,255,1)';
+                e.currentTarget.style.transform = 'scale(1.05)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.9)';
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+              title="Seek backward 10 seconds"
             >
               10s
             </Button>
@@ -353,39 +1108,65 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
             <Button
               type="text"
               icon={<ForwardOutlined />}
-              onClick={seekForward}
-              style={{ color: '#fff' }}
+              onClick={(e) => {
+                e.preventDefault();
+// Console statement removed
+                seekForward();
+              }}
+              style={{ 
+                color: '#333333', 
+                backgroundColor: 'rgba(255,255,255,0.9)', 
+                borderRadius: '8px',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(255,255,255,1)';
+                e.currentTarget.style.transform = 'scale(1.05)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.9)';
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+              title="Seek forward 10 seconds"
             >
               10s
             </Button>
 
             {/* Volume */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '150px' }}>
-              <SoundOutlined style={{ color: '#fff' }} />
+              <SoundOutlined style={{ color: '#333333' }} />
               <Slider
                 value={volume}
                 min={0}
                 max={1}
                 step={0.1}
                 onChange={handleVolumeChange}
-                styles={{ track: { background: '#1890ff' } }}
+                styles={{ 
+                  track: { background: '#FFC107' },
+                  handle: { borderColor: '#FFD700', backgroundColor: '#FFD700' },
+                  rail: { backgroundColor: 'rgba(255,255,255,0.3)' }
+                }}
                 style={{ flex: 1 }}
               />
-              <span style={{ color: '#fff', minWidth: '35px', fontSize: '12px' }}>
+              <span style={{ color: '#333333', minWidth: '35px', fontSize: '12px', fontWeight: 'bold' }}>
                 {Math.round(volume * 100)}%
               </span>
             </div>
 
             {/* Brightness */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '150px' }}>
-              <BgColorsOutlined style={{ color: '#fff' }} />
+              <BgColorsOutlined style={{ color: '#333333' }} />
               <Slider
                 value={brightness}
                 min={0.3}
                 max={1.5}
                 step={0.1}
                 onChange={handleBrightnessChange}
-                styles={{ track: { background: '#1890ff' } }}
+                styles={{ 
+                  track: { background: '#FFC107' },
+                  handle: { borderColor: '#FFD700', backgroundColor: '#FFD700' },
+                  rail: { backgroundColor: 'rgba(255,255,255,0.3)' }
+                }}
                 style={{ flex: 1 }}
               />
             </div>
@@ -394,7 +1175,15 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
             <Select
               value={currentQuality}
               onChange={switchQuality}
-              style={{ minWidth: '100px' }}
+              style={{ 
+                minWidth: '100px',
+                backgroundColor: 'rgba(255,255,255,0.9)',
+                borderRadius: '8px'
+              }}
+              dropdownStyle={{
+                backgroundColor: '#ffffff',
+                border: '2px solid #FFD700'
+              }}
               options={manifest.qualities.map(q => ({
                 label: q.quality,
                 value: q.quality
@@ -402,7 +1191,14 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
             />
 
             {/* Time display */}
-            <span style={{ color: '#fff', marginLeft: 'auto' }}>
+            <span style={{ 
+              color: '#333333', 
+              marginLeft: 'auto',
+              backgroundColor: 'rgba(255,255,255,0.9)',
+              padding: '4px 8px',
+              borderRadius: '6px',
+              fontWeight: 'bold'
+            }}>
               {formatTime(currentTime)} / {formatTime(duration)}
             </span>
 
@@ -411,7 +1207,7 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
               type="text"
               icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
               onClick={toggleFullscreen}
-              style={{ color: '#fff' }}
+              style={{ color: '#333333', backgroundColor: 'rgba(255,255,255,0.9)', borderRadius: '8px' }}
             />
           </div>
         </div>
@@ -427,7 +1223,7 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
             pointerEvents: 'none'
           }}
         >
-          <PlayCircleOutlined style={{ fontSize: '64px', color: 'rgba(255,255,255,0.3)' }} />
+          <PlayCircleOutlined style={{ fontSize: '64px', color: 'rgba(255,215,0,0.6)' }} />
         </div>
       )}
     </div>
