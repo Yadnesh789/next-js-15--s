@@ -28,6 +28,12 @@ frontend/.env.local
 frontend/.next/
 frontend/out/
 
+# Turbopack
+.turbo/
+frontend/.turbo/
+.turbopack/
+frontend/.turbopack/
+
 # Build artifacts
 dist/
 build/

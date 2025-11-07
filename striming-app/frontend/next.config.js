@@ -9,10 +9,53 @@ const nextConfig = {
   },
   // Fix workspace root detection  
   outputFileTracingRoot: path.join(__dirname),
-  // Enable code splitting
+  
+  // Server external packages (moved from experimental)
+  serverExternalPackages: ['antd'],
+  
+  // Turbopack configuration (updated for Next.js 15)
+  turbopack: {
+    rules: {
+      '*.svg': {
+        loaders: ['@svgr/webpack'],
+        as: '*.js',
+      },
+    },
+    resolveAlias: {
+      underscore: 'lodash',
+      mocha: { browser: 'mocha/browser-entry.js' },
+    },
+    resolveExtensions: [
+      '.mdx',
+      '.tsx',
+      '.ts',
+      '.jsx',
+      '.js',
+      '.mjs',
+      '.json',
+    ],
+  },
+  
+  // Experimental features
   experimental: {
-    optimizePackageImports: ['antd', '@ant-design/icons']
-  }
+    optimizePackageImports: ['antd', '@ant-design/icons'],
+    // Enable faster refresh
+    optimisticClientCache: true,
+  },
+  
+  // Webpack fallback for legacy compatibility
+  webpack: (config, { dev, isServer }) => {
+    if (dev && !isServer) {
+      // Enable faster builds in development
+      config.cache = {
+        type: 'filesystem',
+        buildDependencies: {
+          config: [__filename],
+        },
+      };
+    }
+    return config;
+  },
 };
 
 module.exports = nextConfig;

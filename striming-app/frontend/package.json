@@ -3,10 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --turbo",
+    "dev:legacy": "next dev",
     "build": "next build",
+    "build:turbo": "next build --turbo",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "turbo": "next dev --turbo --port 3000"
   },
   "dependencies": {
     "@ant-design/icons": "^5.6.1",
