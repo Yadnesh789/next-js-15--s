@@ -6,7 +6,6 @@ A modern video streaming application built with Next.js 15, Node.js, MongoDB, an
 
 - 🔐 Phone-based authentication with OTP verification
 - 👥 Multiple login/logout sessions
-- 📱 Adaptive bitrate streaming (240p to 1080p)
 - 🎬 Full-featured video player with controls
 - 🎨 Modern UI with Ant Design
 - 📦 Code splitting and scalable architecture
@@ -21,11 +20,13 @@ A modern video streaming application built with Next.js 15, Node.js, MongoDB, an
 ## Project Structure
 
 ```
-striming-app/
-├── frontend/          # Next.js 15 application
-├── backend/           # Node.js/Express API
-├── package.json       # Root workspace configuration
-└── README.md
+next js 15/
+├── striming-app/
+│   ├── frontend/          # Next.js 15 application
+│   ├── backend/           # Node.js/Express API
+│   ├── package.json       # Root workspace configuration
+│   └── API_DOCUMENTATION.md
+└── README.md              # This file
 ```
 
 ## Getting Started
@@ -38,16 +39,21 @@ striming-app/
 
 ### Installation
 
-1. Install all dependencies:
+1. Navigate to the project directory:
+```bash
+cd "next js 15/striming-app"
+```
+
+2. Install all dependencies:
 ```bash
 npm run install:all
 ```
 
-2. Setup environment variables:
+3. Setup environment variables:
 
 Create `.env` files in both frontend and backend directories (see `.env.example` files)
 
-3. Start development servers:
+4. Start development servers:
 ```bash
 npm run dev
 ```
@@ -75,11 +81,26 @@ TWILIO_AUTH_TOKEN=your-twilio-token
 TWILIO_PHONE_NUMBER=your-twilio-number
 ```
 
+## Development
+
+### Running Individual Services
+
+Backend only:
+```bash
+cd striming-app/backend
+npm run dev
+```
+
+Frontend only:
+```bash
+cd striming-app/frontend
+npm run dev
+```
+
 ## API Documentation
 
-API endpoints are available at `/api` routes. See backend documentation for details.
+API endpoints are available at `/api` routes. See `striming-app/API_DOCUMENTATION.md` for details.
 
 ## License
 
 MIT
-
