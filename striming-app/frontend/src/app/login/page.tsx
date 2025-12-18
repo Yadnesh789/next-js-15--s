@@ -115,13 +115,18 @@ export default function LoginPage() {
           </div>
 
           {step === 'phone' ? (
-            <Form onFinish={handleSendOTP} layout="vertical">
+            <Form 
+              onFinish={handleSendOTP} 
+              onFinishFailed={() => message.error('Please check the phone number and try again')}
+              layout="vertical"
+            >
               <Form.Item
                 name="phoneNumber"
                 rules={[
                   { required: true, message: 'Please enter your phone number' },
                   { pattern: /^\+?[1-9]\d{1,14}$/, message: 'Invalid phone number format' }
                 ]}
+                extra={<Text type="secondary" style={{ fontSize: '12px' }}>Enter number with country code (e.g., +919876543210)</Text>}
               >
                 <Input
                   className="input"
@@ -144,7 +149,11 @@ export default function LoginPage() {
               </Button>
             </Form>
           ) : (
-            <Form onFinish={handleVerifyOTP} layout="vertical">
+            <Form 
+              onFinish={handleVerifyOTP} 
+              onFinishFailed={() => message.error('Please enter a valid OTP')}
+              layout="vertical"
+            >
               <Form.Item
                 name="otp"
                 rules={[

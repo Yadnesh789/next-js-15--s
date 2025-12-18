@@ -79,6 +79,7 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
       if (videoRef.current) {
         const actuallyPlaying = !videoRef.current.paused && !videoRef.current.ended;
         if (actuallyPlaying !== isPlaying) {
+          console.log('🔄 Syncing state - Video:', actuallyPlaying, 'React:', isPlaying);
           setIsPlaying(actuallyPlaying);
         }
       }
@@ -95,18 +96,22 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
       switch (e.code) {
         case 'Space':
           e.preventDefault();
+          console.log('⌨️ Spacebar pressed - toggling play');
           togglePlay();
           break;
         case 'ArrowLeft':
           e.preventDefault();
+          console.log('⌨️ Left arrow pressed - seeking backward');
           seekBackward();
           break;
         case 'ArrowRight':
           e.preventDefault();
+          console.log('⌨️ Right arrow pressed - seeking forward');
           seekForward();
           break;
         case 'KeyM':
           e.preventDefault();
+          console.log('⌨️ M key pressed - mute toggle (not implemented)');
           // Toggle mute (if implemented)
           break;
       }
@@ -126,12 +131,17 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
     try {
       setLoading(true);
       setError(null);
+      console.log('🔄 Loading video manifest for:', videoId);
       
       // Check browser codec support
       checkCodecSupport();
       
       // Check if user is authenticated
       const token = Cookies.get('accessToken');
+      console.log('🔑 Authentication status:', {
+        hasToken: !!token,
+        tokenLength: token?.length || 0
+      });
       
       if (!token) {
         setError('Authentication required. Please log in to watch videos.');
@@ -140,7 +150,7 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
       }
       
       const response = await videoAPI.getStreamManifest(videoId);
-      console.log('Stream manifest loaded:', response.data);
+      console.log('✅ Manifest loaded:', response.data);
       setManifest(response.data);
       
       // Set initial quality based on network
@@ -148,8 +158,10 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
         const initialQuality = networkQuality === 'slow' ? '240p' : '720p';
         const available = response.data.qualities.find((q: Quality) => q.quality === initialQuality);
         setCurrentQuality(available ? initialQuality : response.data.qualities[0].quality);
+        console.log('🎬 Initial quality set to:', available ? initialQuality : response.data.qualities[0].quality);
       }
     } catch (error: any) {
+      console.error('❌ Failed to load manifest:', error);
       if (error.response?.status === 401) {
         setError('Authentication failed. Please log in again.');
       } else {
@@ -196,6 +208,7 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
       vp9: video.canPlayType('video/webm; codecs="vp9"'),
     };
     
+    console.log('🎬 Browser codec support:', codecs);
     return codecs;
   };
 
@@ -214,10 +227,10 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
       const contentType = response.headers.get('Content-Type');
       const supportedTypes = ['video/mp4', 'video/webm', 'video/ogg'];
       
-// Console statement removed
+      console.log('📊 Content-Type:', contentType);
       
       if (contentType && supportedTypes.some(type => contentType.includes(type))) {
-// Console statement removed
+        console.log('✅ Video format supported:', contentType);
         return true;
       }
       
@@ -237,22 +250,22 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
               .map(b => String.fromCharCode(b))
               .join('');
             
-// Console statement removed
+            console.log('📊 File signature:', ftypSignature);
             
             if (ftypSignature === 'ftyp') {
-// Console statement removed
+              console.log('✅ MP4 file signature detected');
               return true;
             }
           }
         }
       } catch (sigError) {
-// Console statement removed
+        console.warn('⚠️ Could not check file signature:', sigError);
       }
       
-// Console statement removed
+      console.warn('⚠️ Unsupported video format or corrupted file');
       return false;
     } catch (error) {
-// Console statement removed
+      console.error('❌ Format validation failed:', error);
       return false;
     }
   };
@@ -260,7 +273,7 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
   const tryAlternativeVideoLoading = async () => {
     if (!manifest || !videoRef.current) return;
     
-// Console statement removed
+    console.log('🔄 Trying alternative video loading...');
     
     try {
       // Clear current source
@@ -288,7 +301,7 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
           if (!url) continue;
           
           try {
-// Console statement removed
+            console.log('🔄 Trying URL:', url);
             
             // Test if URL is accessible with a small range request
             const response = await fetch(url, { 
@@ -300,17 +313,17 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
               }
             });
             
-// Console statement removed
-// Console statement removed
-// Console statement removed
+            console.log('📊 Response status:', response.status);
+            console.log('📊 Content-Type:', response.headers.get('Content-Type'));
+            console.log('📊 Accept-Ranges:', response.headers.get('Accept-Ranges'));
             
             if (response.ok) {
-// Console statement removed
+              console.log('✅ URL accessible, setting video source');
               
               // Validate video format before setting source
               const isValidFormat = await validateVideoFormat(url);
               if (!isValidFormat) {
-// Console statement removed
+                console.warn('⚠️ Invalid video format detected');
                 continue;
               }
               
@@ -327,16 +340,16 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
               // Wait a bit and check if video is loadable
               setTimeout(() => {
                 if (videoRef.current && videoRef.current.readyState >= 1) {
-// Console statement removed
+                  console.log('✅ Video metadata loaded successfully');
                 } else {
-// Console statement removed
+                  console.warn('⚠️ Video metadata not loaded, may have format issues');
                 }
               }, 2000);
               
               return;
             }
           } catch (error) {
-// Console statement removed
+            console.warn('⚠️ URL failed:', url, error);
             continue;
           }
         }
@@ -344,7 +357,7 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
         throw new Error('No compatible video format found');
       }
     } catch (error) {
-// Console statement removed
+      console.error('❌ Alternative loading failed:', error);
       
       // Check if it's a format issue
       if (error instanceof Error && error.message.includes('format')) {
@@ -394,19 +407,19 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
     const wasPlaying = !videoRef.current.paused;
     
     setCurrentQuality(quality);
-// Console statement removed
+    console.log('🔄 Switching to quality:', quality);
     
     const token = Cookies.get('accessToken');
-// Console statement removed
+    console.log('🔑 Token available:', !!token);
     
     // Construct the proper video URL
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
     const videoUrl = `${baseUrl}${qualityObj.url}`;
-// Console statement removed
+    console.log('🎥 Base video URL:', videoUrl);
     
     // Add auth token to URL if available
     const urlWithAuth = token ? `${videoUrl}?token=${encodeURIComponent(token)}` : videoUrl;
-// Console statement removed
+    console.log('🔐 Final video URL:', urlWithAuth);
     
     // Set the video source
     videoRef.current.src = urlWithAuth;
@@ -418,7 +431,7 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
         videoRef.current.currentTime = currentTime;
         if (wasPlaying) {
           videoRef.current.play().catch((error) => {
-// Console statement removed
+            console.error('❌ Failed to resume playback:', error);
             message.error('Failed to resume video playback');
           });
         }
@@ -438,33 +451,49 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
 
     const updateTime = () => {
       setCurrentTime(video.currentTime);
+      // Optional: Add debug logging
+      // console.log('Time update:', video.currentTime);
     };
     const updateDuration = () => setDuration(video.duration);
     const handlePlay = () => {
-// Console statement removed
+      console.log('▶️ Video play event fired');
       setIsPlaying(true);
       setBuffering(false); // Clear buffering when playing starts
     };
     
     const handlePause = () => {
+      console.log('⏸️ Video pause event fired');
       setIsPlaying(false);
     };
     
     const handleEnded = () => {
+      console.log('🏁 Video ended');
       setIsPlaying(false);
     };
     
     const handleWaiting = () => {
+      console.log('⏳ Video buffering...');
       setBuffering(true);
     };
     
     const handleCanPlayThrough = () => {
+      console.log('✅ Video can play through');
       setBuffering(false);
     };
     
     const handleError = (e: Event) => {
+      console.error('❌ Video error:', e);
       const error = (e.target as HTMLVideoElement).error;
       if (error) {
+        console.error('❌ Video error details:', {
+          code: error.code,
+          message: error.message,
+          MEDIA_ERR_ABORTED: 1,
+          MEDIA_ERR_NETWORK: 2, 
+          MEDIA_ERR_DECODE: 3,
+          MEDIA_ERR_SRC_NOT_SUPPORTED: 4
+        });
+        
         let errorMessage = 'Video playback error';
         switch (error.code) {
           case 1:
@@ -490,10 +519,10 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
       }
     };
     const handleLoadStart = () => {
-// Console statement removed
+      console.log('🔄 Video loading started');
     };
     const handleCanPlay = () => {
-// Console statement removed
+      console.log('✅ Video can play');
       setError(null); // Clear any previous errors
     };
 
@@ -548,14 +577,14 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
     const qualityObj = manifest.qualities.find((q: Quality) => q.quality === currentQuality);
     if (qualityObj) {
       const token = Cookies.get('accessToken');
-// Console statement removed
+      console.log('🔑 Setting up video source. Token available:', !!token);
       
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
       const videoUrl = `${baseUrl}${qualityObj.url}`;
-// Console statement removed
+      console.log('🎥 Base video URL:', videoUrl);
       
       const urlWithAuth = token ? `${videoUrl}?token=${encodeURIComponent(token)}` : videoUrl;
-// Console statement removed
+      console.log('🔐 Final video URL with auth:', urlWithAuth);
       
       // Clear any existing source first
       videoRef.current.src = '';
@@ -570,6 +599,11 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
           if (videoRef.current.canPlayType) {
             const mp4Support = videoRef.current.canPlayType('video/mp4; codecs="avc1.42E01E"');
             const webmSupport = videoRef.current.canPlayType('video/webm; codecs="vp8"');
+            
+            console.log('🎬 Video format support:', {
+              mp4: mp4Support,
+              webm: webmSupport
+            });
           }
           
           videoRef.current.load();
@@ -578,12 +612,17 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
       
       // Add error handling for source loading
       const handleError = (e: Event) => {
-// Console statement removed
+        console.error('❌ Video source error:', e);
         const video = e.target as HTMLVideoElement;
         if (video.error) {
+          console.error('❌ Video error details:', {
+            code: video.error.code,
+            message: video.error.message
+          });
+          
           // Try alternative loading on format error
           if (video.error.code === 4) {
-// Console statement removed
+            console.log('🔄 Format error detected, trying alternative loading...');
             tryAlternativeVideoLoading();
           } else {
             setError(`Video loading failed: ${video.error.message || 'Unknown error'}`);
@@ -592,12 +631,12 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
       };
       
       const handleLoadStart = () => {
-// Console statement removed
+        console.log('🔄 Video loading started');
         setError(null); // Clear previous errors
       };
       
       const handleCanPlay = () => {
-// Console statement removed
+        console.log('✅ Video can play');
         setError(null);
       };
       
@@ -609,41 +648,49 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
 
   const togglePlay = () => {
     if (!videoRef.current) {
-// Console statement removed
+      console.warn('⚠️ Video ref not available');
       return;
     }
+    
+    console.log('🎮 Toggle play clicked. Current state:', {
+      paused: videoRef.current.paused,
+      isPlaying: isPlaying,
+      src: videoRef.current.src,
+      readyState: videoRef.current.readyState,
+      currentTime: videoRef.current.currentTime
+    });
     
     // Use the actual video element state as the source of truth
     const actuallyPlaying = !videoRef.current.paused;
     
     if (actuallyPlaying) {
-// Console statement removed
+      console.log('⏸️ Attempting to pause video');
       try {
         videoRef.current.pause();
         
         // Force state update if event doesn't fire
         setTimeout(() => {
           if (videoRef.current && videoRef.current.paused && isPlaying) {
-// Console statement removed
+            console.log('🔧 Force updating pause state');
             setIsPlaying(false);
           }
         }, 100);
         
       } catch (error) {
-// Console statement removed
+        console.error('❌ Pause failed:', error);
         setIsPlaying(false);
       }
     } else {
       // Check if video has a valid source before trying to play
       if (!videoRef.current.src) {
-// Console statement removed
+        console.warn('⚠️ No video source available');
         message.warning('Video source not available');
         return;
       }
       
-// Console statement removed
+      console.log('▶️ Attempting to play video');
       videoRef.current.play().catch((error) => {
-// Console statement removed
+        console.error('❌ Play failed:', error);
         message.error(`Failed to play video: ${error.message}`);
         
         // Reset playing state on error
@@ -651,7 +698,7 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
         
         // Try to reload the video if play fails
         if (manifest && videoRef.current) {
-// Console statement removed
+          console.log('🔄 Attempting to reload video...');
           const qualityObj = manifest.qualities.find((q: Quality) => q.quality === currentQuality);
           if (qualityObj) {
             const token = Cookies.get('accessToken');
@@ -669,13 +716,19 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
 
   const seekForward = () => {
     if (!videoRef.current) {
-// Console statement removed
+      console.warn('⚠️ Video ref not available for seek forward');
       return;
     }
     
     const currentTime = videoRef.current.currentTime;
     const videoDuration = videoRef.current.duration || duration;
     const newTime = Math.min(currentTime + 10, videoDuration);
+    
+    console.log('⏩ Seeking forward:', {
+      from: currentTime,
+      to: newTime,
+      duration: videoDuration
+    });
     
     videoRef.current.currentTime = newTime;
     
@@ -689,12 +742,17 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
 
   const seekBackward = () => {
     if (!videoRef.current) {
-// Console statement removed
+      console.warn('⚠️ Video ref not available for seek backward');
       return;
     }
     
     const currentTime = videoRef.current.currentTime;
     const newTime = Math.max(currentTime - 10, 0);
+    
+    console.log('⏪ Seeking backward:', {
+      from: currentTime,
+      to: newTime
+    });
     
     videoRef.current.currentTime = newTime;
     
@@ -707,7 +765,7 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
   };
 
   const handleTimeChange = (value: number) => {
-// Console statement removed
+    console.log('🎯 Slider time change:', value, 'isDragging:', isDragging);
     setIsDragging(true); // Set dragging when slider changes
     
     // Clear any existing timeout
@@ -717,7 +775,7 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
     
     // Set a fallback timeout to reset dragging state
     const timeout = setTimeout(() => {
-// Console statement removed
+      console.log('🎯 Fallback: Resetting dragging state');
       setIsDragging(false);
     }, 1000);
     setDragTimeout(timeout);
@@ -726,12 +784,12 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
       const oldTime = videoRef.current.currentTime;
       videoRef.current.currentTime = value;
       setCurrentTime(value); // Update state to sync slider
-// Console statement removed
+      console.log('🎯 Video time updated from', oldTime, 'to', value);
     }
   };
 
   const handleSliderAfterChange = (value: number) => {
-// Console statement removed
+    console.log('🎯 Slider drag end:', value);
     
     // Clear the fallback timeout
     if (dragTimeout) {
@@ -743,7 +801,7 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
     if (videoRef.current) {
       videoRef.current.currentTime = value;
       setCurrentTime(value);
-// Console statement removed
+      console.log('🎯 Final video time set to:', value);
     }
   };
 
@@ -874,7 +932,7 @@ export default function VideoPlayer({ videoId, videoTitle }: VideoPlayerProps) {
       </div>
     );
   }
-console.log(videoRef,"ss")
+
   return (
     <div
       ref={containerRef}
@@ -899,12 +957,12 @@ console.log(videoRef,"ss")
           }}
           onClick={(e) => {
             e.preventDefault();
-// Console statement removed
+            console.log('🖱️ Video clicked');
             togglePlay();
           }}
           onDoubleClick={(e) => {
             e.preventDefault();
-// Console statement removed
+            console.log('🖱️ Video double-clicked');
             togglePlay();
           }}
           controls={false}
@@ -1082,7 +1140,7 @@ console.log(videoRef,"ss")
               icon={<BackwardOutlined />}
               onClick={(e) => {
                 e.preventDefault();
-// Console statement removed
+                console.log('🖱️ Seek backward button clicked');
                 seekBackward();
               }}
               style={{ 
@@ -1110,7 +1168,7 @@ console.log(videoRef,"ss")
               icon={<ForwardOutlined />}
               onClick={(e) => {
                 e.preventDefault();
-// Console statement removed
+                console.log('🖱️ Seek forward button clicked');
                 seekForward();
               }}
               style={{ 

@@ -10,8 +10,8 @@ const nextConfig = {
   // Fix workspace root detection  
   outputFileTracingRoot: path.join(__dirname),
   
-  // Server external packages (moved from experimental)
-  serverExternalPackages: ['antd'],
+  // Transpile antd for proper SSR support
+  transpilePackages: ['antd', '@ant-design/icons', '@ant-design/nextjs-registry'],
   
   // Turbopack configuration (updated for Next.js 15)
   turbopack: {
@@ -38,7 +38,6 @@ const nextConfig = {
   
   // Experimental features
   experimental: {
-    optimizePackageImports: ['antd', '@ant-design/icons'],
     // Enable faster refresh
     optimisticClientCache: true,
   },

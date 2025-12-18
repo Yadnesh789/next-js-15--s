@@ -7,6 +7,9 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Striming App - Watch Your Favorite Videos',
   description: 'Modern video streaming platform',
+  icons: {
+    icon: '/icon.svg',
+  },
 };
 
 export default function RootLayout({
