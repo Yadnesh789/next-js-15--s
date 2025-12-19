@@ -1,5 +1,4 @@
 import express from 'express';
-import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import { connectDB } from './config/database';
@@ -17,44 +16,36 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// CORS configuration - must be before other middleware
-const corsOptions = {
-  origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
-    // Allow requests with no origin (mobile apps, curl, etc)
-    if (!origin) {
-      return callback(null, true);
-    }
-    
-    // Allow localhost for development
-    if (origin.includes('localhost')) {
-      return callback(null, true);
-    }
-    
-    // Allow all vercel.app subdomains
-    if (origin.endsWith('.vercel.app')) {
-      return callback(null, true);
-    }
-    
-    // Allow specific frontend URL from env
-    if (process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL) {
-      return callback(null, true);
-    }
-    
-    callback(null, true); // Allow all for now
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  optionsSuccessStatus: 200
-};
-
-// Enable pre-flight for all routes
-app.options('*', cors(corsOptions));
+// Simple CORS - Allow all origins for now (fix for Vercel)
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  
+  // Allow all vercel.app domains and localhost
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
+  
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Max-Age', '86400');
+  
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+  
+  next();
+});
 
 // Middleware
-app.use(cors(corsOptions));
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: 'cross-origin' }
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  crossOriginOpenerPolicy: false,
+  crossOriginEmbedderPolicy: false,
 }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
