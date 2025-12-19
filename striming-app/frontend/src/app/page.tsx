@@ -11,15 +11,15 @@ export default function Home() {
   const { isAuthenticated } = useAuthStore();
 
   // Temporarily comment out authentication check for debugging
-  // useEffect(() => {
-  //   if (!isAuthenticated) {
-  //     router.push('/login');
-  //   }
-  // }, [isAuthenticated, router]);
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.push('/login');
+    }
+  }, [isAuthenticated, router]);
 
-  // if (!isAuthenticated) {
-  //   return null;
-  // }
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <main style={{ minHeight: '100vh', background: '#ffffff' }}>

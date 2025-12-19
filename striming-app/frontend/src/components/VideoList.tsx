@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Card, Row, Col, Spin, Input, message } from 'antd';
+import { Card, Row, Col, Spin, Input, message, Button } from 'antd';
 import { PlayCircleOutlined, SearchOutlined } from '@ant-design/icons';
-import { videoAPI } from '@/lib/api';
+import { videoAPI, searchAPI } from '@/lib/api';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 
 const VideoPlayer = dynamic(() => import('./VideoPlayer'), { ssr: false });
@@ -24,6 +25,7 @@ export default function VideoList() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [debugInfo, setDebugInfo] = useState<string>('Initializing...');
+  const router = useRouter();
 
   useEffect(() => {
     setDebugInfo('Component mounted - Loading videos...');
@@ -58,15 +60,30 @@ export default function VideoList() {
   };
 
   const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      loadVideos();
+      return;
+    }
+    
     try {
       setLoading(true);
-      const response = await videoAPI.getVideos({ search: searchQuery });
-      setVideos(response.data.videos);
+      // Use the new search API
+      const response = await searchAPI.search({ query: searchQuery });
+      if (response.data.success) {
+        setVideos(response.data.videos);
+      } else {
+        const fallbackResponse = await videoAPI.getVideos({ search: searchQuery });
+        setVideos(fallbackResponse.data.videos);
+      }
     } catch (error: any) {
       message.error(error.response?.data?.error || 'Search failed');
     } finally {
       setLoading(false);
     }
+  };
+  
+  const goToAdvancedSearch = () => {
+    router.push(`/search${searchQuery ? `?query=${encodeURIComponent(searchQuery)}` : ''}`);
   };
 
   const formatDuration = (seconds: number) => {
@@ -103,7 +120,7 @@ export default function VideoList() {
         }}>
           🎬 Striming App
         </h1>
-        <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <Input
             className="input"
             size="large"
@@ -112,8 +129,23 @@ export default function VideoList() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onPressEnter={handleSearch}
-            style={{ maxWidth: '500px' }}
+            style={{ maxWidth: '400px' }}
           />
+          <Button 
+            type="primary" 
+            size="large"
+            onClick={handleSearch}
+            style={{ background: 'linear-gradient(135deg, #FFD700, #FFC107)', border: 'none' }}
+          >
+            Search
+          </Button>
+          <Button 
+            size="large"
+            onClick={goToAdvancedSearch}
+            icon={<SearchOutlined />}
+          >
+            Advanced
+          </Button>
         </div>
       </div>
 

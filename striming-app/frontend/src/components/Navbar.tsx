@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { Layout, Menu, Button, Dropdown, Avatar } from 'antd';
-import { LogoutOutlined, UserOutlined, HomeOutlined } from '@ant-design/icons';
+import { LogoutOutlined, UserOutlined, HomeOutlined, SearchOutlined, UploadOutlined, SettingOutlined } from '@ant-design/icons';
 import { useAuthStore } from '@/store/authStore';
 import { useEffect } from 'react';
 
@@ -29,6 +29,31 @@ export default function Navbar() {
       icon: <HomeOutlined />,
       label: 'Home',
       onClick: () => router.push('/')
+    },
+    {
+      key: 'search',
+      icon: <SearchOutlined />,
+      label: 'Search',
+      onClick: () => router.push('/search')
+    },
+    {
+      key: 'admin',
+      icon: <SettingOutlined />,
+      label: 'Admin',
+      children: [
+        {
+          key: 'upload-video',
+          icon: <UploadOutlined />,
+          label: 'Upload Video',
+          onClick: () => router.push('/admin')
+        },
+        {
+          key: 'manage-videos',
+          icon: <SettingOutlined />,
+          label: 'Manage Videos',
+          onClick: () => router.push('/admin?tab=manage')
+        }
+      ]
     },
     {
       key: 'sessions',
@@ -58,9 +83,9 @@ export default function Navbar() {
   ];
 
   // Temporarily show navbar even if not authenticated for debugging
-  // if (!isAuthenticated) {
-  //   return null;
-  // }
+  if (!isAuthenticated) {
+    return null;
+  }
 
   if (!isAuthenticated) {
     return (
