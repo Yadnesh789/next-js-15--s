@@ -25,14 +25,18 @@ const upload = multer({
     fileSize: parseInt(process.env.MAX_FILE_SIZE || '524288000') // 500MB default
   },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = /mp4|webm|ogg/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
+    // Check file extension
+    const allowedExtensions = /\.(mp4|webm|ogg|avi|mov|mkv)$/i;
+    const extname = allowedExtensions.test(file.originalname);
+    
+    // Check mimetype - allow common video types
+    const allowedMimetypes = /^video\//;
+    const mimetype = allowedMimetypes.test(file.mimetype);
 
-    if (mimetype && extname) {
+    if (mimetype || extname) {
       return cb(null, true);
     } else {
-      cb(new Error('Only video files are allowed'));
+      cb(new Error('Only video files are allowed (mp4, webm, ogg, avi, mov, mkv)'));
     }
   }
 });
@@ -50,11 +54,22 @@ router.post(
         return;
       }
 
-      const { title, description, category, duration } = req.body;
+      const { title, description, category, duration, tags } = req.body;
 
-      if (!title || !duration) {
-        res.status(400).json({ error: 'Title and duration are required' });
+      if (!title) {
+        res.status(400).json({ error: 'Title is required' });
         return;
+      }
+
+      // Parse tags if provided as JSON string
+      let parsedTags: string[] = [];
+      if (tags) {
+        try {
+          parsedTags = JSON.parse(tags);
+        } catch {
+          // If not valid JSON, try splitting by comma
+          parsedTags = tags.split(',').map((t: string) => t.trim());
+        }
       }
 
       // For demo: create a single quality version
@@ -72,10 +87,11 @@ router.post(
         {
           filePath: req.file.path,
           title,
-          description,
-          category: category || 'general',
-          duration: parseInt(duration),
-          thumbnail: req.body.thumbnail || ''
+          description: description || '',
+          category: category || 'other',
+          duration: duration ? parseInt(duration) : 0,
+          thumbnail: req.body.thumbnail || '',
+          tags: parsedTags
         },
         qualityFiles
       );
@@ -90,8 +106,20 @@ router.post(
         // Failed to cleanup temporary file
       }
 
-      res.json({ success: true, message: 'Video uploaded successfully' });
+      res.json({ 
+        success: true, 
+        message: 'Video uploaded successfully',
+        data: {
+          title,
+          description: description || '',
+          category: category || 'other',
+          duration: duration ? parseInt(duration) : 0,
+          thumbnail: req.body.thumbnail || '',
+          tags: parsedTags
+        }
+      });
     } catch (error: any) {
+      console.error('Video upload error:', error);
       
       // Clean up file even on error
       try {
@@ -104,8 +132,8 @@ router.post(
       }
       
       res.status(500).json({ 
-        error: error.message,
-        stack: error.stack
+        success: false,
+        error: error.message
       });
     }
   }

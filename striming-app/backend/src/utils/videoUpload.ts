@@ -17,6 +17,7 @@ export interface VideoUploadOptions {
   category?: string;
   duration: number;
   thumbnail?: string;
+  tags?: string[];
 }
 
 export const uploadVideoToGridFS = async (
@@ -79,6 +80,7 @@ export const createVideoWithQualities = async (
     thumbnail: options.thumbnail || '',
     duration: options.duration,
     category: options.category || 'general',
+    tags: options.tags || [],
     videoFiles
   });
 

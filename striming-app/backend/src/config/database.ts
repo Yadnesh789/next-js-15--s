@@ -3,8 +3,11 @@ import { GridFSBucket } from 'mongodb';
 
 export const connectDB = async (): Promise<void> => {
   try {
-    const mongoURI = 'mongodb://localhost:27017'; 
-    
+    console.log('🔗 Connecting to MongoDB...',process.env.MONGODB_URI);
+    const mongoURI = process.env.MONGODB_URI;
+    if (!mongoURI) {
+      throw new Error('MONGODB_URI environment variable is not defined');
+    }
     await mongoose.connect(mongoURI);
     
     console.log('✅ MongoDB connected successfully');

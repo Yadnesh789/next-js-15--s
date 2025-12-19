@@ -12,6 +12,7 @@ export interface IVideo extends Document {
     resolution: string;
   }[];
   category: string;
+  tags: string[];
   views: number;
   uploadDate: Date;
   isActive: boolean;
@@ -59,6 +60,10 @@ const VideoSchema = new Schema<IVideo>(
       type: String,
       default: 'general'
     },
+    tags: {
+      type: [String],
+      default: []
+    },
     views: {
       type: Number,
       default: 0
@@ -79,6 +84,7 @@ const VideoSchema = new Schema<IVideo>(
 
 VideoSchema.index({ title: 'text', description: 'text' });
 VideoSchema.index({ category: 1 });
+VideoSchema.index({ tags: 1 });
 VideoSchema.index({ uploadDate: -1 });
 
 export const Video = mongoose.model<IVideo>('Video', VideoSchema);
