@@ -111,7 +111,7 @@ export default function Navbar() {
           }}
           onClick={() => router.push('/')}
         >
-          🎬 Striming (Debug Mode)
+          🎬 Striming 
         </div>
         <Button onClick={() => router.push('/login')}>Login</Button>
       </Header>
